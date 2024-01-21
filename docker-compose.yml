@@ -1,0 +1,57 @@
+version: "3"
+
+services:
+  postgres:
+    image: postgres:<version>
+    container_name: postgres_game
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: 'Europe/Moscow'
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    ports:
+      - "<port>:5432"
+
+
+  scheduler:
+    image: registry.mmsup.ru/cmocean-mmsup/gamification:<version>
+    container_name: scheduler_game
+    env_file:
+      - .env
+    volumes:
+      - ./configs:/app/configs
+      - ./logs:/app/logs
+      - ./cube_export:/app/cube_export
+    depends_on:
+      - postgres
+
+
+  grafana:
+    image: grafana/grafana:<version>
+    container_name: grafana_game
+    ports:
+      - "<port>:3000"
+    user: "1000"
+    env_file:
+      - .env
+    environment:
+      - GF_DATABASE_TYPE=postgres
+      - GF_DATABASE_HOST=postgres
+      - GF_DATABASE_NAME=grafana
+      - GF_DATABASE_USER=${POSTGRES_USER}
+      - GF_DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - GF_INSTALL_PLUGINS=...
+      - TZ='Europe/Moscow'
+
+    volumes:
+      - ./grafana_data:/var/lib/grafana
+      - ./grafana_custom/build:/usr/share/grafana/public/build
+      - ./grafana_custom/favicon.png:/usr/share/grafana/public/img/fav32.png
+      - ./grafana_custom/favicon.png:/usr/share/grafana/public/img/apple-touch-icon.png
+      - ./grafana_custom/logo.svg:/usr/share/grafana/public/img/grafana_icon.svg
+      - ./grafana_custom/gradient.svg:/usr/share/grafana/public/img/g8_login_dark.svg
+      - ./grafana_custom/gradient.svg:/usr/share/grafana/public/img/g8_login_light.svg

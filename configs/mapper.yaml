@@ -1,0 +1,32 @@
+# CSV-файл: users
+CUBE_COLS_USERS:
+    '[$DIM PERSON RESM].[PM PRIMARYKEY]':               'user_name'
+    '[$DIM PERSON RESM].[Res Manager Display Name]':    'res_manager_name'
+    '[$DIM PERSON RESM].[Curator Display Name]':        'curator_name'
+    '[$DIM PERSON RESM].[Title]':                       'job_title'
+    '[$DIM PERSON RESM].[Office]':                      'office'
+    '[$DIM PERSON RESM].[Employment Status Effective]': 'status'
+    '[$DIM PERSON RESM].[Res Pool Display Name]':       'pool_name'
+    '[$DIM PERSON RESM].[User Key]':                    'user_key'
+    '[$DIM PERSON RESM].[Lower Email Address]':         'email'
+
+# CSV-файл: user_timelog
+CUBE_COLS_USER_TIMELOG:
+      '[Logdate].[Hierarchy].[Date].[MEMBER_CAPTION]':                          'log_date'
+      '[DIM PERSON RESM].[Lower User Name].[Lower User Name].[MEMBER_CAPTION]': 'user_name'
+      '[DIM ISSUE].[Issue Id].[Issue Id].[MEMBER_CAPTION]':                     'issue_id'
+      '[DIM ISSUE].[Summary].[Summary].[MEMBER_CAPTION]':                       'issue_summary'
+      '[DIM PROJECT FINPLAN].[Hierarchy].[CLIENT DESC].[MEMBER_CAPTION]':       'project'
+      '[DIM PROJECT FINPLAN].[Hierarchy].[fin_project_id].[MEMBER_CAPTION]':    'fin_project'
+      '[Measures].[TimeworkedDays]':                                            'time_worked_days'
+
+
+# CSV-файл: work_calendar
+CUBE_COLS_WORK_CALENDAR:
+       '[DIM PERSON RESM].[PM PRIMARYKEY].[PM PRIMARYKEY].[MEMBER_CAPTION]': 'user_name'
+       '[Logdate].[Hierarchy].[Date].[MEMBER_CAPTION]':                      'log_date'
+       '[Measures].[Sickleave Md]':                                          'sick_leave'
+       '[Measures].[Dayoff Md]':                                             'day_off'
+       '[Measures].[Vacation Md]':                                           'vacation'
+       '[Measures].[Working Md]':                                            'working'
+       '[Measures].[Total Wl Md]':                                           'total_wl'

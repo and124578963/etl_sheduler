@@ -1,0 +1,13 @@
+configs/*.json
+logs/*
+vpn
+venv
+
+.env
+.gitignore
+docker-compose.yml
+Dockerfile
+README.md
+grafana_custom
+
+test.py

@@ -1,4 +1,4 @@
-FROM python:3.10-bookworm
+FROM python:3.10-slim-bookworm
 # Locale
 RUN apt-get update && apt-get install -y locales vim less net-tools
 
@@ -13,7 +13,7 @@ ENV TZ "Europe/Moscow"
 COPY requirements.txt /app/requirements.txt
 WORKDIR /app
 RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install -r /app/requirements.txt
 
 COPY . /app
 WORKDIR /app

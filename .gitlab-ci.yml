@@ -1,0 +1,44 @@
+image: node:alpine
+
+stages:
+  - build
+  - test
+  - deploy
+
+services:
+  - "docker:dind"
+
+
+build-container:
+  stage: build
+  image: ci-cd:2.1
+  script:
+    - docker build -t "gamification:$(cat ./container_version)-${CI_COMMIT_BRANCH}" .
+  tags:
+    - docker
+
+pytest:
+  stage: test
+  image: ci-cd:2.1
+  script:
+    - docker run  
+          -e POSTGRES_DB='gamification' 
+          -e POSTGRES_USER=${PG_LOG_DEV}
+          -e POSTGRES_PASSWORD=${PG_PASS_DEV}
+          -e POSTGRES_HOST=
+          -e POSTGRES_PORT=
+          --entrypoint "python" 
+          "gamification:$(cat ./container_version)-${CI_COMMIT_BRANCH}" -m pytest
+
+  tags:
+    - docker
+
+
+push-container:
+  stage: deploy
+  image: ci-cd:2.1
+  script:
+    - if [ "${CI_COMMIT_BRANCH}" != "dev" ] && [ "${CI_COMMIT_BRANCH}" != "main" ]; then echo "Пйплайн только для dev и main ветки."; exit 0; fi
+    - docker push "gamification:$(cat ./container_version)-${CI_COMMIT_BRANCH}"
+  tags:
+    - docker

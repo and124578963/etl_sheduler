@@ -1,7 +1,10 @@
-import importlib
-from typing import List
+from typing import List, Type
 
-from database.dao.gamification import PersonalAchievements
+from ETL.etl import ETL
+from common.utils import get_classes_from_module
+from database.schemas.game import PersonalAchievements
+from metrics.prometheus_metrics import time_metric_wrapper, TimeMetrics, \
+    status_metric_wrapper, StatusMetrics, ErrorMetric
 from scheduler.tasks.task_common import Task
 
 CLASS_LINK = {}
@@ -10,14 +13,16 @@ CLASS_LINK = {}
 class ETL_Task(Task):
     def __init__(self, name, cron, is_critical):
         super().__init__(name, cron)
-        self.etl_module_path = f"ETL.{self.name}.main"
+        self.etl_module_path = f"ETL.{self.name}"
 
         if is_critical:
             self.add_critical_name()
 
-    def apply(self):
-        etl_module = importlib.import_module(self.etl_module_path)
-        etl_module.main()
+    @status_metric_wrapper(status_metric=StatusMetrics.ETL_STATUS, error_metric=ErrorMetric.ETL)
+    @time_metric_wrapper(metric=TimeMetrics.ETL_TIME)
+    def apply(self, **kwargs):
+        etl_class: Type[ETL] = get_classes_from_module("ETL", ETL).get(self.name)
+        etl_class().main()
 
         if self.name == "ETL_GET_DATA_FROM_GTABLE":
             if not self.cron_config["first_execute_all"]:
@@ -33,7 +38,9 @@ class PersonalAchieveEtlTask(Task):
     def __init__(self):
         super().__init__("PersonalAchiveEtlTask", "NoCron")
 
-    def apply(self):
+    @status_metric_wrapper(status_metric=StatusMetrics.ETL_STATUS, error_metric=ErrorMetric.ETL)
+    @time_metric_wrapper(metric=TimeMetrics.ETL_TIME)
+    def apply(self, **kwargs):
         achieve_list = self.get_new_personal_achieve()
         self.check_exist_score(achieve_list)
         for achive in achieve_list:
@@ -57,5 +64,5 @@ class PersonalAchieveEtlTask(Task):
         achive.is_processed = True
         self.db.update_orm_obj(achive, session=self.transaction_session)
         self.log.info(
-                f"Персональная ачивка {achive.achievement_name} добавлена пользователю {achive.user.display_name}"
+                f"Персональное достижение {achive.achievement_name} добавлена пользователю {achive.user.login}"
         )

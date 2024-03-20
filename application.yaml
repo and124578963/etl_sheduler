@@ -1,21 +1,22 @@
 cron:
-  first_execute_all: false
-  execute_achieve_etl: true
-  job_actual_time: 30
+  first_execute_all: true
+  execute_achieve_etl: false
+  # seconds
+  job_actual_time: 3600
 
   etl:
     - name: ETL_GET_DATA_FROM_CUBE
-      enabled: false
-      cron: 30 21 * * *
+      enabled: true
+      cron: "30 21 * * *"
       critical: false
     - name: ETL_GET_DATA_FROM_JIRA_CSV
-      enabled: false
-      cron: 45 21 * * *
-      critical: true
+      enabled: true
+      cron: "45 21 * * *"
+      critical: false
     - name: ETL_GET_DATA_FROM_GTABLE
-      enabled: false
+      enabled: true
       cron: "*/10 * * * *"
-      critical: true
+      critical: false
     - name: ETL_GET_START_TG_BOT
       enabled: false
       cron: "30 9 * * *"
@@ -28,48 +29,55 @@ cron:
     Ежеквартально: "0 0 1 3,6,9,12 *"
     Ежегодно: "0 0 29 12 *"
 
-google_table:
-  service_key: ./configs/service_account.json
-  table_name: <Table name>
-  achieve_sheet: Achievements
-  personal_achieve_sheet: Manual
-
+conf:
+  google_table:
+    max_retries: 3
+    service_key: ./configs/service_account-${ENV}.json
+    name: Gamification ${ENV}
+    sheets:
+      - name: Achievements-${ENV}
+        target_table: achievements
+      - name: Manual-${ENV}
+        target_table: pers_achieve
+      - name: Project SLA-${ENV}
+        target_table: project_sla
 
 telegram:
-  grafana_url: 'url'
-  response_link: '<url>'
+  grafana_url:
+  response_link:
 
 cube:
-  csv_store_path: 'ETL/ETL_GET_DATA_FROM_CUBE/cube_export'
-  drop_csv_column:
-    - Unknown
-    - Nan
-    - Не указан сотрудник
-    - Не указано
-    - NULL
+  separator: "~"
+
+  sftp_host:
+  sftp_port: 22
+  sftp_filepath:
+  sftp_archive_path:
+
+  all_files_upload: false
 
   tables:
-    - table_name: cube_users
-      csv_name: users
+    - table_name: user
+      file_name: users
       merge_cols:
-        - user_key
-      mapper_name: CUBE_COLS_USERS
+        - login
+      mapper_name: CUBE_USERS
 
-    - table_name: cube_user_timelog
-      csv_name: user_timelog
+    - table_name: user_timelog
+      file_name: user_timelog
       merge_cols:
         - user_name
         - log_date
         - issue_id
         - time_worked_days
-      mapper_name: CUBE_COLS_USER_TIMELOG
+      mapper_name: CUBE_USER_TIMELOG
 
-    - table_name: cube_work_calendar
-      csv_name: work_calendar
+    - table_name: work_calendar
+      file_name: work_calendar
       merge_cols:
         - user_name
         - log_date
-      mapper_name: CUBE_COLS_WORK_CALENDAR
+      mapper_name: CUBE_WORK_CALENDAR
 
 
 jira:
@@ -80,35 +88,31 @@ jira:
   teams:
     - "Команда MM.SUP"
 
-  csv_url: <jira csv export url>
+  csv_url:
   jql:
     general: jqlQuery=updated+%3E%3D+-3d+AND+project+not+in+%28ACRMCLONE%29+AND+assignee+in+
     clone: jqlQuery=updated+%3E%3D+-3d+AND+project+in+%28ACRMCLONE%29+AND+assignee+in+
 
-  micropulls:
-    - name: OneTeam
-      members:
-        - andrey.pervushin
-    - name: OtherTeam
-      members:
-        - andrey.pervushin
 
 prometheus:
   nodeExporterPort: 8000
+
+database:
+  merge_batch_size: 50
 
 logging:
   path: logs/scheduler.log
   backupCount: 5
   maxMegaBytes: 100
   loggers:
-    - name: ETL_GET_DATA_FROM_JIRA_CSV
-      lvl: DEBUG
-    - name: ETL_GET_DATA_FROM_CUBE
-      lvl: DEBUG
-    - name: ETL_GET_DATA_FROM_GTABLE
-      lvl: DEBUG
     - name: scheduler
       lvl: DEBUG
+    - name: etl
+      lvl: DEBUG
+    - name: database
+      lvl: DEBUG
+
+  #library
     - name: apscheduler
       lvl: ERROR
     - name: sqlalchemy

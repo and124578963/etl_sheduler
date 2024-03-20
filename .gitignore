@@ -1,14 +1,24 @@
+# Default ignored files
 /shelf/
 /workspace.xml
+
+# Editor-based HTTP Client requests
 /httpRequests/
+
+# Datasource local storage ignored files
 /dataSources/
 /dataSources.local.xml
+
+# Custom ignore files
 .idea/
-*.log
-ETL/ETL_GET_DATA_FROM_JIRA_CSV/*csv
-ETL/ETL_GET_DATA_FROM_CUBE/cube_export/*csv
-*env
+venv/
+*.log*
+ETL/*.csv
+
+# Confidential files
+.env
 configs/*.json
+
 vpn/*
 
-grafana_custom/build/
+/configs/sftp_ssh_private_key

@@ -1,18 +1,17 @@
 import pytest
-from common.utils import override, singleton
+from common.utils import override, Singleton
 
 
-@singleton
-class SingletoneA:
+class SingletonA(metaclass=Singleton):
     def __init__(self, *args, **kwargs):
         self.test = args
 
-@singleton
-class SingletoneB:
+
+class SingletonB(metaclass=Singleton):
     ...
 
-@singleton
-class SingletoneC(SingletoneB):
+
+class SingletonC(SingletonB, metaclass=Singleton):
     def __init__(self, *args, **kwargs):
         self.test = args
         self.self_test()
@@ -22,17 +21,14 @@ class SingletoneC(SingletoneB):
 
 
 def test_singleton():
-    some_dict = {"test":1, "test2":2, "test3": 3}
-    some_list = ("test","test""test","test","test")
+    some_dict = {"test": 1, "test2": 2, "test3": 3}
+    some_list = ("test", "test""test", "test", "test")
 
-    assert SingletoneA(*some_list, **some_dict) is SingletoneA()
-    assert SingletoneB() is SingletoneB()
-    assert SingletoneC(*some_list, **some_dict) is SingletoneC()
-
+    assert SingletonA(*some_list, **some_dict) is SingletonA()
     with pytest.raises(TypeError):
-        SingletoneB(*some_list, **some_dict)
-
-
+        SingletonB(*some_list, **some_dict)
+    assert SingletonB() is SingletonB()
+    assert SingletonC(*some_list, **some_dict) is SingletonC()
 
 
 def test_override():

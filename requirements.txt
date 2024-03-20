@@ -4,10 +4,14 @@ gspread==5.11.2
 psycopg2-binary==2.9.9
 pandas==1.5.2
 ldap3==2.9.1
-requests==2.27.1
+requests==2.31.0
 python-dotenv==1.0.0
 telepot==12.7
 PyYAML==6.0.1
 pytest==7.4.4
 prometheus-client==0.19.0
 sqlalchemy-collectd==0.0.8
+paramiko==3.4.0
+pydantic==2.5.3
+urllib3==2.2.1
+alembic==1.13.1

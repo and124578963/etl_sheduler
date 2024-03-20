@@ -2,19 +2,26 @@ import datetime
 from typing import List, Tuple
 
 from common.utils import override
-from database.dao.archive import LostAchivePerUser
-from database.dao.gamification import Achievements, AchivePerUser, ProgressAchivePerUser
-from database.dao.jira import JiraUser
+from database.schemas.archive import LostAchivePerUser
+from database.schemas.cube import User
+from database.schemas.game import Achievements, AchivePerUser, ProgressAchivePerUser
+from metrics.prometheus_metrics import time_metric_wrapper, TimeMetrics, status_metric_wrapper, StatusMetrics, \
+    ErrorMetric
 
 from scheduler.tasks.task_common import Task, SQLAchieveResult
+from scheduler.tasks.task_exceptions import EmptyResult
 
 
 class AchieveTask(Task):
     def __init__(self, achieve_id: int, name: str, cron: str):
         super().__init__(name, cron)
+        self.achieve_id = achieve_id
         self.achieve: Achievements = self.get_achieve(achieve_id)
 
-    def apply(self):
+    @status_metric_wrapper(status_metric=StatusMetrics.ACHIEVE_STATUS, error_metric=ErrorMetric.ACHIEVE)
+    @time_metric_wrapper(metric=TimeMetrics.ACHIEVE_TIME)
+    def apply(self, **kwargs):
+        self.achieve: Achievements = self.get_achieve(self.achieve_id)
         self.check_status_critical_etl()
         raw_result_list = self.execute_sql()
         list_of_result_obj = self.convert_result_to_obj(raw_result_list)
@@ -31,13 +38,18 @@ class AchieveTask(Task):
 
     def convert_result_to_obj(self, result: List[Tuple]) -> List[SQLAchieveResult]:
         list_obj = []
-        for user_id, amount in result:
-            list_obj.append(SQLAchieveResult(user_id, amount))
-        return list_obj
+        if len(result) > 0:
+            if len(result[0]) != 2:
+                raise ValueError("SQL достижения должна возвращать значения в формате (user_id, amount)")
+            for user_id, amount in result:
+                list_obj.append(SQLAchieveResult(user_id, amount))
+            return list_obj
+        else:
+            raise EmptyResult(self.name)
 
     def get_achieve(self, achieve_id: int) -> Achievements:
         achieve_list = self.db.select_orm(
-            Achievements, conditions=[Achievements.id == str(achieve_id)]
+            Achievements, conditions=[Achievements.id == str(achieve_id)], session=self.transaction_session
         )
         if len(achieve_list) != 1:
             raise Exception(
@@ -58,35 +70,36 @@ class AchieveTask(Task):
         results = self.db.execute_raw_sql(sql_stmt)
         results.sort(key=lambda row: int(row[1]), reverse=True)
         if not results:
-            raise Exception("Result is empty")
+            raise EmptyResult(self.name)
         return results
 
-    def count_achive(self, list_result: List[SQLAchieveResult]) -> List[JiraUser]:
+    def count_achive(self, list_result: List[SQLAchieveResult]) -> List[User]:
         max_amount = max([res.amount for res in list_result])
         list_user_with_max = [
             res.user for res in list_result if res.amount == max_amount
         ]
         return list_user_with_max
 
-    def assign_achive(self, list_user: List[JiraUser]):
+    def assign_achive(self, list_user: List[User]):
         raise Exception(
-            "Этот класс - интерфейс. Необходимо переопределить функцию assign_achive"
+            "Этот класс - интерфейс. Необходимо переопределить функцию assign_achieve"
         )
 
     def add_exp_to_users(self, list_result: List[SQLAchieveResult]):
         for res in list_result:
-            self.score_helper.add_exp_to_user(res.user, res.amount, self.achieve.exp)
+            if res.amount > 0 and self.achieve.exp > 0:
+                self.score_helper.add_exp_to_user(res.user, res.amount, self.achieve.exp, self.achieve.id)
 
 
 class RollingAchive(AchieveTask):
 
     @override
-    def assign_achive(self, list_user: List[JiraUser]):
+    def assign_achive(self, list_user: List[User]):
         self.unassign_old_achieve()
         for user in list_user:
-            self.score_helper.add_cost_to_user(user, self.achieve.cost)
+            self.score_helper.add_cost_to_user(user, self.achieve.cost, self.achieve.id)
             self.log.debug(
-                f"Добавляем пользователю {user.display_name} - достижение: {self.achieve.name}"
+                f"Добавляем пользователю {user.login} - достижение: {self.achieve.name}"
             )
             self.db.insert_orm_obj(
                 AchivePerUser(user_id=user.id, achive_id=self.achieve.id)
@@ -101,38 +114,36 @@ class RollingAchive(AchieveTask):
                 get_dttm=exist_achive.update_dttm,
             )
             self.db.insert_orm_obj(to_lost_achive)
-            self.db.delete_orm_obj(exist_achive)
+            self.db.delete_orm_obj(exist_achive, session=self.transaction_session)
             self.log.debug(
-                f"Пользователь user_id: {exist_achive.user.display_name} - "
+                f"Пользователь user_id: {exist_achive.user.login} - "
                 f"потерял переходящую ачивку: {exist_achive.achive.name}"
             )
 
 
 class NoRollingAchive(AchieveTask):
     @override
-    def assign_achive(self, list_user: List[JiraUser]):
+    def assign_achive(self, list_user: List[User]):
         for user in list_user:
             owners_id = [i.user_id for i in self.achieve.achive_x_user]
             if user.id not in owners_id:
                 self.log.info(
-                    f"Добавляем достижение: {self.achieve.name} - для {user.display_name}"
+                    f"Добавляем достижение: {self.achieve.name} - для {user.login}"
                 )
                 self.db.insert_orm_obj(
                     AchivePerUser(user_id=user.id, achive_id=self.achieve.id)
                 )
-                self.score_helper.add_cost_to_user(user, self.achieve.cost)
+                self.score_helper.add_cost_to_user(user, self.achieve.cost, self.achieve.id)
             else:
                 self.log.info(
-                    f"У пользователя {user.display_name} уже есть достижение: {self.achieve.name}"
+                    f"У пользователя {user.login} уже есть достижение: {self.achieve.name}"
                 )
 
 
 class ProgressAchive(AchieveTask):
     @override
-    def count_achive(self, list_result: List[SQLAchieveResult]) -> List[JiraUser]:
-        list_progress_a_x_u: List[
-            ProgressAchivePerUser
-        ] = self.achieve.progress_achive_x_user
+    def count_achive(self, list_result: List[SQLAchieveResult]) -> List[User]:
+        list_progress_a_x_u: List[ProgressAchivePerUser] = self.achieve.progress_achive_x_user
         all_users_in_result = [i.user for i in list_result]
         self.create_progress_if_not_exist(all_users_in_result, list_progress_a_x_u)
 
@@ -149,7 +160,7 @@ class ProgressAchive(AchieveTask):
                 continue
 
             self.log.debug(
-                f"Пользователь {res.user.display_name} набрал {res.amount} из {self.achieve.goal} для "
+                f"Пользователь {res.user.login} набрал {res.amount} из {self.achieve.goal} для "
                 f"достижения {self.achieve.name}"
             )
 
@@ -168,7 +179,7 @@ class ProgressAchive(AchieveTask):
             self.update_progress_of_user(progress_of_user, res.amount)
             res.amount = actual_amount
 
-            return list_user_for_assign
+        return list_user_for_assign
 
     def update_progress_of_user(self, progress_obj: ProgressAchivePerUser, new_amount):
         progress_obj.last_result = new_amount
@@ -176,7 +187,7 @@ class ProgressAchive(AchieveTask):
 
     def create_progress_if_not_exist(
         self,
-        list_user: List[JiraUser],
+        list_user: List[User],
         list_progress_a_x_u: List[ProgressAchivePerUser],
     ):
         list_owners = [i.user_id for i in list_progress_a_x_u]
@@ -192,17 +203,14 @@ class ProgressAchive(AchieveTask):
                 )
 
     @override
-    def assign_achive(self, list_user: List[JiraUser]):
+    def assign_achive(self, list_user: List[User]):
         for user in list_user:
-            self.score_helper.add_cost_to_user(user, self.achieve.cost)
+            self.score_helper.add_cost_to_user(user, self.achieve.cost, self.achieve.id)
             self.db.insert_orm_obj(
                 AchivePerUser(user_id=user.id, achive_id=self.achieve.id)
             )
             self.log.info(
-                f"Пользователь {user.display_name} достиг достижения {self.achieve.name}"
+                f"Пользователь {user.login} достиг достижения {self.achieve.name}"
             )
 
-    @override
-    def add_exp_to_users(self, list_result: List[SQLAchieveResult]):
-        for res in list_result:
-            self.score_helper.add_exp_to_user(res.user, res.amount, self.achieve.exp)
+

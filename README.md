@@ -7,7 +7,7 @@
 2. scheduler/tasks - классы задач, которые ставятся на расписание планировщиком
 3. database - подключение к бд с помощью sqlalchemy
 4. metrics - сборка метрик для отправки в prometheus
-5. test - тесты на pytest
+5. tests - тесты на pytest
 6. ETL - etl, которые писали другие люди (пусто)
 7. configs - инициализатор файла конфигурации application.yaml
 8. common - функциональные декораторы
